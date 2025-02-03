@@ -14,7 +14,7 @@ export interface Engine {
   process(): Promise<ProcessResult | null>;
 }
 
-export class Index<T extends Record<keyof T, any>> {
+export class Index<T extends {[key: string]: any}> {
   private items: Array<T> = [];
 
   private indexes: {
@@ -37,7 +37,7 @@ export class Index<T extends Record<keyof T, any>> {
     this.items.push(item);
 
     for (const field of this.indexedFields) {
-      const value = Object.prototype.hasOwnProperty.call(item, field)
+      const value = Object.hasOwn(item, field)
         ? item[field]
         : undefined;
 
@@ -65,7 +65,7 @@ export class Index<T extends Record<keyof T, any>> {
     for (const [field_, value] of filterEntries) {
       const field = field_ as keyof T;
 
-      const index = Object.prototype.hasOwnProperty.call(this.indexes, field)
+      const index = Object.hasOwn(this.indexes, field)
         ? this.indexes[field]
         : undefined;
 
@@ -98,8 +98,8 @@ export class Index<T extends Record<keyof T, any>> {
       result = result.filter(item => {
         for (const [field, value] of sequentialFilters) {
           const valid = typeof value !== `undefined`
-            ? Object.prototype.hasOwnProperty.call(item, field) && item[field] === value
-            : Object.prototype.hasOwnProperty.call(item, field) === false;
+            ? Object.hasOwn(item, field) && item[field] === value
+            : Object.hasOwn(item, field) === false;
 
           if (!valid) {
             return false;
@@ -155,7 +155,7 @@ function formatStackLine(configuration: Configuration, caller: nodeUtils.Caller)
       fileParts.push(formatUtils.pretty(configuration, caller.line, formatUtils.Type.NUMBER));
 
       if (caller.column !== null) {
-        fileParts.push(formatUtils.pretty(configuration, caller.line, formatUtils.Type.NUMBER));
+        fileParts.push(formatUtils.pretty(configuration, caller.column, formatUtils.Type.NUMBER));
       }
     }
 
@@ -174,7 +174,10 @@ export function applyEngineReport(project: Project, {manifestUpdates, reportedEr
   const changedWorkspaces = new Map<Workspace, Record<string, any>>();
   const remainingErrors = new Map<Workspace, Array<AnnotatedError>>();
 
-  for (const [workspaceCwd, workspaceUpdates] of manifestUpdates) {
+  const errorEntries = [...reportedErrors.keys()]
+    .map(workspaceCwd => [workspaceCwd, new Map()] as const);
+
+  for (const [workspaceCwd, workspaceUpdates] of [...errorEntries, ...manifestUpdates]) {
     const workspaceErrors = reportedErrors.get(workspaceCwd)?.map(text => ({text, fixable: false})) ?? [];
     let changedWorkspace = false;
 
@@ -200,7 +203,7 @@ export function applyEngineReport(project: Project, {manifestUpdates, reportedEr
         const [[newValue]] = newValues;
 
         const currentValue = get(manifest, fieldPath);
-        if (currentValue === newValue)
+        if (JSON.stringify(currentValue) === JSON.stringify(newValue))
           continue;
 
         if (!fix) {
